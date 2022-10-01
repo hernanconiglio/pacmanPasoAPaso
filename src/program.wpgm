@@ -6,12 +6,29 @@ program pacman {
 	// límites del juego
 	game.width(14)
 	game.height(8)
-	
+	game.title("Pacman!")
 	// fondo
 	game.boardGround("pacmanBackground.jpg")
 	
 	// personaje principal
 	game.addVisualCharacter(pacman)
+	
+	// rivales
+//	game.addVisual(new Rival(numero = 1))
+//	game.addVisual(new Rival(numero = 2))
+
+	const rivales = [new Rival(numero =1), new Rival(numero =2)]	
+	
+	rivales.forEach { r => 
+		game.addVisual(r)
+		game.whenCollideDo(r, { personaje =>
+			personaje.perderVida()
+			if (personaje.juegoTerminado()) {
+				game.stop()
+			}
+		})
+	}
+
 	
 	// que arranque el juego!
 	game.start()
