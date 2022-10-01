@@ -1,112 +1,177 @@
-# Primer juego: Wollok Game
- 
-[![Build Status](https://travis-ci.org/wollok/pacmanBasicGame.svg?branch=master)](https://travis-ci.org/wollok/pacmanBasicGame)
+# Pacman!
 
+# Tercera iteración: rivales en movimiento
 
-Para conocer Wollok Game vamos a desarrollar un pac-man básico con el que conoceremos los conceptos principales del juego.
+Por el momento, los rivales están parados, entonces mientras el personaje no vaya hacia sus rivales, éstos no le quitarán vidas. Vamos a hacerlo un poco más interesante.
 
-# Primera iteración
+## Movimiento del rival
 
-## El tablero
+El rival debería 
 
-Generamos un proyecto Wollok, con un programa. Lo primero que escribimos es
+- tratar de acercarse hasta la posición donde está el personaje
+- algunos podrían hacerlo más rápido que otros
+
+En el programa, siempre dentro de la creación de rivales, hacemos:
 
 ```wollok
-program abc {
-    
-	// que arranque el juego!
-	game.start()
-
-}
+	rivales.forEach { rival => 
+        ...
+		game.onTick(1.randomUpTo(5) * 1000, "movimiento", {
+			rival.acercarseA(pacman)
+		})
+	}
 ```
 
-Bueno, no es algo muy convincente, pero tenemos un tablero provisto por el wko game, que acabamos de conocer.
+## Acercamiento del pacman
 
-## Mejorando el tablero
+Para acercarse al pacman, debemos conocer su posición y como estrategia sencilla
 
-Para que el tablero se vea un poco más interesante, vamos a 
+- si el pacman está arriba nuestro, iremos hacia arriba
+- si el pacman está abajo nuestro, iremos hacia abajo
+- si el pacman está a nuestra derecha, iremos hacia la derecha
+- o a la izquierda en caso contrario
 
-- agrandar su tamaño, eso nos permitirá que luego nuestro personaje se pueda mover más confortablemente
-- y pondremos una imagen bonita de fondo
+Dentro de la clase Rival, escribimos
 
-Pueden elegir cualquiera de las imágenes que quieran, lo debemos guardar en una carpeta que tiene que ser **carpeta fuente**. Si ya bajaste el archivo en una carpeta asset, en el Wollok IDE te va a aparecer como una carpeta común, lo pasás a carpeta fuente de la siguiente manera:
+```wollok
+class Rival {
+	var property position  // pasa a ser un atributo
 
-<img src="videos/sourceFolder.gif" height="60%" width="60%"/>
+   	...
 
-(podés agrandar la imagen haciendo click en ella)
-
-De lo contrario, lo común es generar una carpeta fuente desde cero, como se muestra a continuación:
-
-<img src="videos/newSourceFolder.gif" height="60%" width="60%"/>
-
-Ahora sí, podemos actualizar el programa, poniéndole un nombre más representativo que abc:
-
-```js
-program pacman {
-	
-	// límites del juego
-	game.width(14)
-	game.height(8)
-	
-	// fondo
-	game.boardGround("pacmanBackground.jpg")
-	
-	// que arranque el juego!
-	game.start()
-	
-}
+	method acercarseA(personaje) {
+		var otroPosicion = personaje.position()
+		var newX = position.x() + if (otroPosicion.x() > position.x()) 1 else -1
+		var newY = position.y() + if (otroPosicion.y() > position.y()) 1 else -1
+		position = game.at(newX, newY)
+	}
 ```
 
-## Agregando un personaje principal
+El método es un poco largo, podemos refactorizarlo luego.
 
-Vamos a crear un pacman, en el archivo example.wlk que nos generó el IDE de Wollok. El pacman será nuestro personaje principal, y al igual que cualquier otro elemento visual del juego, debe tener como atributos:
+## Demo de cómo quedaría el juego hasta ahora
 
-- una imagen asociada (para que el jugador lo identifique en el tablero)
-- y una posición inicial dentro del tablero
+![video](videos/demo.gif)
 
-Escribimos entonces nuestro pacman:
+En el video vemos que hay algunos inconvenientes
+
+- si el personaje no se mueve, la colisión contra un rival hace que pierda el juego porque se repiten 3 colisiones muy rápidamente
+- por otra parte, si colisionan dos rivales, esto hace que se produzca un mensaje no entendido: perderVida() solo lo entiende el pacman, no el rival
+
+Vamos a mejorar la experiencia de usuario haciendo un refactor importante de nuestra solución, en el programa ya no vamos a asumir que "perdí una vida" ya que quien se mueve no es solo el pacman, sino también los rivales. Entonces queremos trabajar polimórficamente el hecho de que choquen entre sí:
+
+```wollok
+	rivales.forEach { rival => 
+		game.addVisual(rival)
+		game.whenCollideDo(rival, { personaje =>
+			personaje.chocarCon(rival) // se maneja un método polimórfico
+		})
+		game.onTick(1.randomUpTo(5) * 1000, {
+			rival.acercarseA(pacman)
+		})
+	}
+```
+
+Entonces el pacman al chocar
+
+- pierde una vida
+- resetea su posición
+- le pide al rival que resetee su posición
+- y verifica que el juego no haya terminado
 
 ```wollok
 object pacman {
-	var property image = "pacman.png"
 	var property position = game.origin()
+	var property image = "pacman.png"
+	var vidas = 3
+
+	method juegoTerminado() = vidas == 0
+	
+	method resetPosition() {
+		position = game.origin()
+	}
+	
+	method chocarCon(rival) {
+		// sin dudas perdí una vida
+		vidas = vidas - 1
+		// reset de las posiciones
+		self.resetPosition()
+		rival.resetPosition()
+		// agregamos la validación del juego terminado en pacman
+		if (self.juegoTerminado()) {
+			game.stop()
+		}
+	}
 }
 ```
 
-La imagen corresponde a un nombre de archivo que debe existir en la carpeta "asset" o como lo quieran llamar, y que debe ser una carpeta fuente. El wko game ofrece un mensaje origin() para ubicarlo en la esquina izquierda inferior del tablero.
-
-Solamente necesitamos agregarlo al tablero de la siguiente manera:
+Por otro lado, el rival al chocar con otro rival no va a hacer nada. Pero vamos a mejorar la forma de acercarse hacia el personaje para que no caiga en el tablero (no puede bajar de la posición 0 ni excederse el máximo del ancho o alto del tablero):
 
 ```wollok
-program pacman {
+class Rival {
+	const numero = 1
+	var property position = game.at(3, 3)
+	
+	method image() = "rival" + numero.toString() + ".png"
+
+	method acercarseA(personaje) {
+		var otroPosicion = personaje.position()
+		var newX = position.x() + if (otroPosicion.x() > position.x()) 1 else -1
+		var newY = position.y() + if (otroPosicion.y() > position.y()) 1 else -1
+		// evitamos que se posicionen fuera del tablero
+		newX = newX.max(0).min(game.width() - 1)
+		newY = newY.max(0).min(game.height() - 1)
+		position = game.at(newX, newY)
+	}
+	
+	method resetPosition() {
+		position = game.at(numero + 1, numero + 1)
+	}
+	
+	method chocarCon(otro) {}
+}
+```
+
+# La segunda demo
+
+Ahora va pareciéndose a un juego, no?
+
+![demo](videos/demo2.gif)
+
+# Un último chiche
+
+Vamos a evitar que dos rivales colisionen entre sí, para lo cual guardaremos la posición anterior, en caso de que haya colisión con otro rival vamos a respetar que el otro "nos ganó de mano" y volveremos a la posición anterior:
+
+```wollok
+class Rival {
+    ...
+	var previousPosition
+
+	method acercarseA(personaje) {
+        ...
+		previousPosition = position
+		position = game.at(newX, newY)
+	}
 	
     ...
 	
-	// personaje principal
-	game.addVisualCharacter(pacman)
+	method chocarCon(otro) {
+		self.resetPreviousPosition()
+	}
 	
-	// que arranque el juego!
-	game.start()
-	
+	method resetPreviousPosition() {
+		position = previousPosition 
+	}
 }
 ```
 
-Y listo! Tenemos una primera versión de nuestro juego:
+# Cómo seguir
 
-![demo](videos/firstGame.gif)
+Hay varios desafíos que te invitamos a resolver:
 
-# Cómo seguir con el tutorial
-
-Desde una línea de comando, escribí 
-
-```bash
-$ git checkout 02-rivales
-$ git pull
-```
-
-y leé el archivo README de ese branch. También podés navegar este mismo ejemplo en github:
-
-https://github.com/wollok/pacmanBasicGame
-
-y arriba a la izquierda, donde dice Branch: **master** lo cambiás al **02-rivales**
+- crear una cereza (existe ya la imagen cherry.png), que cuando el personaje la coma transforme a los rivales en "comestibles". Por un lado los rivales ya no deben querer acercarse al pacman (es decir que su estrategia cambia), por otra parte deben visualizarse en un color diferente (azul sería bueno), y cuando colisionen deben darle puntos al pacman, además de resetearse
+- la cereza da poderes por un cierto límite de tiempo, pasado ese tiempo los rivales vuelven a la normalidad
+- cuando el pacman pasa una cierta cantidad de puntos recupera una vida
+- cuando el pacman se mueva hacia arriba, que se visualice un gráfico del pacman con la boca apuntando para arriba, y lo mismo para las otras posiciones (abajo, derecha e izquierda)
+- **heavy**: armar un tablero con ladrillos que no se puedan traspasar, como en el [sokoban](https://github.com/wollok/sokobanGame)
 
