@@ -1,0 +1,6 @@
+
+program pacman {
+
+	console.println('Hello Wollok')
+
+}
