@@ -1,106 +1,124 @@
-# Primer juego: Wollok Game
- 
-[![Build Status](https://travis-ci.org/wollok/pacmanBasicGame.svg?branch=master)](https://travis-ci.org/wollok/pacmanBasicGame)
+# Pacman!
 
+# Segunda iteración: rivales
 
-Para conocer Wollok Game vamos a desarrollar un pac-man básico con el que conoceremos los conceptos principales del juego.
+## Algunos ajustes al tablero
 
-# Primera iteración
-
-## El tablero
-
-Generamos un proyecto Wollok, con un programa. Lo primero que escribimos es
-
-```wollok
-program abc {
-    
-	// que arranque el juego!
-	game.start()
-
-}
-```
-
-Bueno, no es algo muy convincente, pero tenemos un tablero provisto por el wko game, que acabamos de conocer.
-
-## Mejorando el tablero
-
-Para que el tablero se vea un poco más interesante, vamos a 
-
-- agrandar su tamaño, eso nos permitirá que luego nuestro personaje se pueda mover más confortablemente
-- y pondremos una imagen bonita de fondo
-
-Pueden elegir cualquiera de las imágenes que quieran, lo debemos guardar en una carpeta que tiene que ser **carpeta fuente**. Si ya bajaste el archivo en una carpeta asset, en el Wollok IDE te va a aparecer como una carpeta común, lo pasás a carpeta fuente de la siguiente manera:
-
-<img src="videos/sourceFolder.gif" height="60%" width="60%"/>
-
-(podés agrandar la imagen haciendo click en ella)
-
-De lo contrario, lo común es generar una carpeta fuente desde cero, como se muestra a continuación:
-
-<img src="videos/newSourceFolder.gif" height="60%" width="60%"/>
-
-Ahora sí, podemos actualizar el programa, poniéndole un nombre más representativo que abc:
+Con el gimp o cualquier programa de edición, vamos a ajustar el fondo para que tenga menos contraste y se vea con efecto más apagado, para que los personajes y los elementos se distingan más. Además le vamos a poner un título al juego:
 
 ```js
 program pacman {
 	
-	// límites del juego
-	game.width(14)
-	game.height(8)
-	
-	// fondo
-	game.boardGround("pacmanBackground.jpg")
-	
-	// que arranque el juego!
-	game.start()
-	
-}
+	game.title("Pacman!")
 ```
 
-## Agregando un personaje principal
+## El rival
 
-Vamos a crear un pacman, en el archivo example.wlk que nos generó el IDE de Wollok. El pacman será nuestro personaje principal, y al igual que cualquier otro elemento visual del juego, debe tener como atributos:
-
-- una imagen asociada (para que el jugador lo identifique en el tablero)
-- y una posición inicial dentro del tablero
-
-Escribimos entonces nuestro pacman:
+Vamos a generar dos rivales inicialmente, que no tienen un comportamiento diferencial, ambos van a ser objetos visuales ubicados en posiciones distintas y con colores diferentes. Entonces una clase rival suena bien, la ubicamos en el archivo `exmample.wlk`:
 
 ```wollok
-object pacman {
-	var property image = "pacman.png"
-	var property position = game.origin()
+class Rival {
+	const numero
+	
+	method image() = "rival" + numero.toString() + ".png"
+
+	method position() = game.at(numero + 1, numero + 1)
 }
 ```
 
-La imagen corresponde a un nombre de archivo que debe existir en la carpeta "asset" o como lo quieran llamar, y que debe ser una carpeta fuente. El wko game ofrece un mensaje origin() para ubicarlo en la esquina izquierda inferior del tablero.
+Al insntanciar a los rivales se le pasa el número, para determinar
 
-Solamente necesitamos agregarlo al tablero de la siguiente manera:
+- la imagen que va a utilizar: "rival1.png", "rival2.png", etc.
+- y la posición inicial que va a ocupar, (2, 2) para el primer rival, (3, 3) para el segundo rival, etc.
+
+
+## Agregando los rivales al tablero
+
+En el programa pacman incorporamos los dos rivales:
 
 ```wollok
 program pacman {
-	
     ...
-	
-	// personaje principal
-	game.addVisualCharacter(pacman)
-	
-	// que arranque el juego!
-	game.start()
-	
+
+	// rivales
+	game.addVisual(new Rival(numero = 1))
+	game.addVisual(new Rival(numero = 2))
+
 }
 ```
+## Estrategia de colisión contra los rivales
 
-Y listo! Tenemos una primera versión de nuestro juego:
+Si ejecutamos el programa, no tiene mucha gracia: el personaje pasa por encima de sus rivales y éstos, como si nada. Vamos a jugar un poco con estrategia de colisión, cada vez que el personaje choque con un rival
 
-![demo](videos/firstGame.gif)
+- pierde una vida
+- y vuelve a la posición original
+
+Para eso, necesitamos tener una referencia a los rivales. Cambiaremos entonces la forma de instanciarlos en el programa:
+
+```wollok
+    // rivales
+	const rivales = [new Rival(numero =1), new Rival(numero =2)]
+	
+	rivales.forEach { rival => 
+		game.addVisual(rival)
+		game.whenCollideDo(rival, { personaje =>
+			personaje.perderVida()
+		})
+	}
+```
+
+Y qué hace el método perderVida() de pacman? Al rival no le importa, la delegación funciona también en los juegos.
+
+## Perdiendo una vida
+
+Ahora sí implementamos la pérdida de la vida del pacman, para eso
+
+- necesitamos contar cuántas vidas tiene, con una referencia a un número nos alcanza
+- y actualizar la posición donde se encuentra
+
+```wollok
+object pacman {
+    ...
+	var vidas = 3
+
+	method perderVida() {
+		vidas-=1
+		position = game.origin()	
+	}
+```
+
+## Terminando el juego
+
+Un agregado más: vamos a parar el juego cuando el pacman pierda tres vidas. Entonces agregamos una pregunta, pero sin saber que el pacman tiene vidas. En el programa:
+
+```wollok
+	rivales.forEach { rival => 
+		game.addVisual(rival)
+		game.whenCollideDo(rival, { personaje =>
+			personaje.perderVida()
+			if (personaje.juegoTerminado()) {
+				game.stop()
+			}
+		})
+	}
+```
+
+Solo nos falta definir el método juegoTerminado() en pacman:
+
+```wollok
+method juegoTerminado() = vidas == 0
+```
+
+# Demo de cómo quedaría el juego hasta ahora
+
+![video](videos/demo.gif)
 
 # Cómo seguir con el tutorial
 
 Desde una línea de comando, escribí 
 
 ```bash
-$ git checkout 02-rivales
+$ git checkout 03-movimiento
 $ git pull
 ```
 
@@ -108,5 +126,5 @@ y leé el archivo README de ese branch. También podés navegar este mismo ejemp
 
 https://github.com/wollok/pacmanBasicGame
 
-y arriba a la izquierda, donde dice Branch: **master** lo cambiás al **02-rivales**
+y arriba a la izquierda, donde dice Branch: **master** lo cambiás al **03-movimiento**
 
