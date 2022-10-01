@@ -1,6 +1,14 @@
+import wollok.game.*
+import pacman.*
 
 program pacman {
 
-	console.println('Hello Wollok')
+	game.width(14)
+	game.height(8)
+	
+	// fondo
+	game.boardGround("pacmanBackground.jpg")
+	game.addVisualCharacter(pacman)
+	game.start()
 
 }
