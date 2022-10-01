@@ -1,0 +1,19 @@
+import wollok.game.*
+import pacman.*
+
+program pacman {
+	
+	// límites del juego
+	game.width(14)
+	game.height(8)
+	
+	// fondo
+	game.boardGround("pacmanBackground.jpg")
+	
+	// personaje principal
+	game.addVisualCharacter(pacman)
+	
+	// que arranque el juego!
+	game.start()
+	
+}
